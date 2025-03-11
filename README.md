@@ -11,6 +11,177 @@
   </a>
 </p>
 
+# Xiaozhi ESP32 服务端系统
+
+本系统是一个完整的ESP32设备管理平台，包含三个主要组件：
+- **manager-api**：基于Spring Boot的后端API服务
+- **manager-web**：前端界面
+- **xiaozhi-server**：WebSocket服务器
+
+## 系统要求
+
+### 软件要求
+- JDK 21+
+- Maven 3.8+
+- MySQL 8.0+
+- Node.js 16+ (用于前端)
+- npm 8+ (用于前端)
+
+## 数据库配置
+
+1. 安装MySQL数据库
+   ```bash
+   # Ubuntu/Debian系统
+   sudo apt update
+   sudo apt install mysql-server
+   
+   # 或者使用Docker
+   docker pull mysql:8.0
+   docker run --name xiaozhi-mysql -e MYSQL_ROOT_PASSWORD=123456 -p 3306:3306 -d mysql:8.0
+   ```
+
+2. 创建数据库和用户
+   ```bash
+   mysql -u root -p
+   
+   # 在MySQL控制台中执行
+   CREATE DATABASE xiaozhi_esp32_server CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+   # 确保root用户拥有正确的权限
+   ALTER USER 'root'@'localhost' IDENTIFIED BY '123456';
+   GRANT ALL PRIVILEGES ON xiaozhi_esp32_server.* TO 'root'@'localhost';
+   FLUSH PRIVILEGES;
+   ```
+
+## 启动后端API服务 (manager-api)
+
+1. 进入manager-api目录
+   ```bash
+   cd main/manager-api
+   ```
+
+2. 使用Maven编译项目
+   ```bash
+   mvn clean compile
+   ```
+
+3. 启动Spring Boot应用程序
+   ```bash
+   mvn spring-boot:run -Dmaven.test.skip=true
+   ```
+
+4. 启动成功后，可以通过以下地址访问API文档：
+   ```
+   http://localhost:8002/xiaozhi-esp32-api/doc.html
+   ```
+
+### 配置说明
+
+数据库连接配置位于 `main/manager-api/src/main/resources/application-dev.yml` 文件中：
+
+```yaml
+spring:
+  datasource:
+    druid:
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      url: jdbc:mysql://localhost:3306/xiaozhi_esp32_server?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&nullCatalogMeansCurrent=true
+      username: root
+      password: 123456
+```
+
+如需修改数据库连接信息，请更新此文件。
+
+## 启动前端服务 (manager-web)
+
+1. 进入manager-web目录
+   ```bash
+   cd main/manager-web
+   ```
+
+2. 安装依赖
+   ```bash
+   npm install
+   ```
+
+3. 启动开发服务器
+   ```bash
+   npm run serve
+   ```
+
+4. 构建生产版本
+   ```bash
+   npm run build
+   ```
+
+5. 访问前端界面
+   ```
+   http://localhost:8080
+   ```
+
+## 启动WebSocket服务器 (xiaozhi-server)
+
+1. 进入xiaozhi-server目录
+   ```bash
+   cd main/xiaozhi-server
+   ```
+
+2. 使用Maven编译项目
+   ```bash
+   mvn clean package
+   ```
+
+3. 启动WebSocket服务器
+   ```bash
+   java -jar target/xiaozhi-server-0.0.1.jar
+   ```
+
+## 常见问题
+
+### 数据库连接问题
+
+如果遇到数据库连接问题，请检查：
+
+1. MySQL服务是否正在运行
+   ```bash
+   systemctl status mysql
+   ```
+
+2. 用户名和密码是否正确
+3. 数据库名称是否正确
+4. MySQL是否允许本地连接
+
+### 端口冲突
+
+如果端口被占用，可以在相应的配置文件中修改端口：
+
+- manager-api: 修改 `application-dev.yml` 中的 `server.port` 属性
+- manager-web: 修改 `vue.config.js` 中的 `devServer.port` 属性
+- xiaozhi-server: 修改配置文件中的端口设置
+
+## 开发与调试
+
+### API开发
+后端API基于Spring Boot框架，可以在 `main/manager-api/src/main/java/xiaozhi` 目录下修改或添加代码。
+
+### 前端开发
+前端基于Vue.js框架，可以在 `main/manager-web/src` 目录下修改或添加代码。
+
+### WebSocket服务器
+WebSocket服务器处理与ESP32设备的实时通信，代码位于 `main/xiaozhi-server/src` 目录。
+
+## 贡献指南
+
+欢迎贡献代码或提出建议。请遵循以下步骤：
+
+1. Fork本仓库
+2. 创建特性分支 (`git checkout -b feature/amazing-feature`)
+3. 提交更改 (`git commit -m 'Add some amazing feature'`)
+4. 推送到分支 (`git push origin feature/amazing-feature`)
+5. 创建Pull Request
+
+## 许可证
+ws://192.168.8.198:8000
+[添加许可证信息]
+
 # 小智 ESP-32 后端服务(xiaozhi-esp32-server)
 
 （中文 | [English](README_en.md)）
@@ -264,7 +435,7 @@ server:
 建议：检查一下`models/SenseVoiceSmall`是否已经有`model.pt`
 文件，如果没有就要下载，查看这里[下载语音识别模型文件](docs/Deployment.md#模型文件)
 
-### 2、为什么会出现“TTS 任务出错 文件不存在”？📁
+### 5、为什么会出现"TTS 任务出错 文件不存在"？📁
 
 建议：检查一下是否正确使用`conda` 安装了`libopus`和`ffmpeg`库。
 
@@ -282,7 +453,7 @@ conda install conda-forge::ffmpeg
 
 ### 4、如何提高小智对话响应速度？ ⚡
 
-本项目默认配置为低成本方案，建议初学者先使用默认免费模型，解决“跑得动”的问题，再优化“跑得快”。  
+本项目默认配置为低成本方案，建议初学者先使用默认免费模型，解决"跑得动"的问题，再优化"跑得快"。  
 如需提升响应速度，可尝试更换各组件。以下为各组件的响应速度测试数据（仅供参考，不构成承诺）：
 
 | 影响因素  |       因素值        | 
@@ -357,7 +528,7 @@ VAD:
 
 我们的联系方式放在[百度网盘中,点击前往](https://pan.baidu.com/s/1x6USjvP1nTRsZ45XlJu65Q)，提取码是`223y`。
 
-网盘里有“硬件烧录QQ群”、“开源服务端交流群”、“产品建议联系人” 三张图片，请根据需要选择加入。
+网盘里有"硬件烧录QQ群"、"开源服务端交流群"、"产品建议联系人" 三张图片，请根据需要选择加入。
 
 - 硬件烧录QQ群：适用于硬件烧录问题
 - 开源服务端交流群：适用于服务端问题
