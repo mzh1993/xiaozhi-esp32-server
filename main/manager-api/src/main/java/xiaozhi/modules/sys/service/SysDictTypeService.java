@@ -23,11 +23,6 @@ public interface SysDictTypeService extends BaseService<SysDictTypeEntity> {
     void update(SysDictTypeDTO dto);
 
     void delete(Long[] ids);
-<<<<<<< HEAD
-
-    List<DictType> getAllList();
-
-=======
     
     /**
      * 获取所有字典类型及其数据
@@ -37,6 +32,5 @@ public interface SysDictTypeService extends BaseService<SysDictTypeEntity> {
     /**
      * 获取所有字典类型
      */
->>>>>>> 调通远程服务器功能，但是语音卡顿
     List<DictType> getDictTypeList();
 }
