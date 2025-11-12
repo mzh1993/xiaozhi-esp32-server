@@ -163,7 +163,13 @@ class ConnectionHandler:
     async def handle_connection(self, ws):
         try:
             # 获取并验证headers
-            self.headers = dict(ws.request.headers)
+            merged_headers = getattr(
+                ws,
+                "merged_headers",
+                {k.lower(): v for k, v in ws.request.headers.items()},
+            )
+            # 统一转换为普通dict，后续取值统一使用小写key
+            self.headers = dict(merged_headers)
             real_ip = self.headers.get("x-real-ip") or self.headers.get(
                 "x-forwarded-for"
             )

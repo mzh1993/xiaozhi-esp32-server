@@ -54,31 +54,45 @@ class WebSocketServer:
             await asyncio.Future()
 
     async def _handle_connection(self, websocket):
-        headers = dict(websocket.request.headers)
-        if headers.get("device-id", None) is None:
-            # 尝试从 URL 的查询参数中获取 device-id
+        try:
             from urllib.parse import parse_qs, urlparse
 
-            # 从 WebSocket 请求中获取路径
-            request_path = websocket.request.path
-            if not request_path:
-                self.logger.bind(tag=TAG).error("无法获取请求路径")
-                await websocket.close()
-                return
+            # websockets>=12 将 request.headers 暴露为不可变对象，统一转换为小写字典
+            merged_headers = {k.lower(): v for k, v in websocket.request.headers.items()}
+
+            device_id = merged_headers.get("device-id")
+            client_id = merged_headers.get("client-id")
+            authorization = merged_headers.get("authorization")
+
+            request_path = websocket.request.path or ""
             parsed_url = urlparse(request_path)
             query_params = parse_qs(parsed_url.query)
-            if "device-id" not in query_params:
+
+            if not device_id:
+                device_id = query_params.get("device-id", [None])[0]
+            if not device_id:
                 await websocket.send("端口正常，如需测试连接，请使用test_page.html")
                 await websocket.close()
                 return
-            else:
-                websocket.request.headers["device-id"] = query_params["device-id"][0]
-            if "client-id" in query_params:
-                websocket.request.headers["client-id"] = query_params["client-id"][0]
-            if "authorization" in query_params:
-                websocket.request.headers["authorization"] = query_params[
-                    "authorization"
-                ][0]
+
+            if not client_id:
+                client_id = query_params.get("client-id", [None])[0]
+            if not authorization:
+                authorization = query_params.get("authorization", [None])[0]
+
+            merged_headers["device-id"] = device_id
+            if client_id:
+                merged_headers["client-id"] = client_id
+            if authorization:
+                merged_headers["authorization"] = authorization
+
+            # 挂载到 websocket 对象，供认证 & ConnectionHandler 使用
+            setattr(websocket, "merged_headers", merged_headers)
+
+        except Exception as exc:
+            self.logger.bind(tag=TAG).error(f"握手阶段解析连接信息失败: {exc}")
+            await websocket.close()
+            return
 
         """处理新连接，每次创建独立的ConnectionHandler"""
         # 先认证，后建立连接
@@ -121,14 +135,24 @@ class WebSocketServer:
                     f"服务器端强制关闭连接时出错: {close_error}"
                 )
 
-    async def _http_response(self, websocket, request_headers):
-        # 检查是否为 WebSocket 升级请求
-        if request_headers.headers.get("connection", "").lower() == "upgrade":
-            # 如果是 WebSocket 请求，返回 None 允许握手继续
+    async def _http_response(self, path, request_headers):
+        # 兼容 websockets>=14 将 Request 对象传入的情况
+        headers_obj = getattr(request_headers, "headers", request_headers)
+        def header_get(name, default=""):
+            value = headers_obj.get(name, default)
+            return value or default
+
+        connection_header = header_get("Connection")
+        upgrade_header = header_get("Upgrade")
+        if "upgrade" in connection_header.lower() and upgrade_header.lower() == "websocket":
             return None
-        else:
-            # 如果是普通 HTTP 请求，返回 "server is running"
-            return websocket.respond(200, "Server is running\n")
+
+        body = b"Server is running\n"
+        headers = [
+            ("Content-Type", "text/plain; charset=utf-8"),
+            ("Content-Length", str(len(body))),
+        ]
+        return (200, headers, body)
 
     async def update_config(self) -> bool:
         """更新服务器配置并重新初始化组件
@@ -184,9 +208,13 @@ class WebSocketServer:
     async def _handle_auth(self, websocket):
         # 先认证，后建立连接
         if self.auth_enable:
-            headers = dict(websocket.request.headers)
-            device_id = headers.get("device-id", None)
-            client_id = headers.get("client-id", None)
+            headers = getattr(
+                websocket,
+                "merged_headers",
+                {k.lower(): v for k, v in websocket.request.headers.items()},
+            )
+            device_id = headers.get("device-id")
+            client_id = headers.get("client-id")
             if self.allowed_devices and device_id in self.allowed_devices:
                 # 如果属于白名单内的设备，不校验token，直接放行
                 return
